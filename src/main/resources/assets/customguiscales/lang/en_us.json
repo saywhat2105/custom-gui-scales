@@ -1,0 +1,9 @@
+{
+  "customguiscales.screen.title": "Custom GUI Scales",
+  "customguiscales.button.open": "Custom GUI Scales…",
+  "customguiscales.button.tooltip": "Set independent GUI scales for the hotbar and tooltips.",
+  "customguiscales.value.off": "Off (global)",
+
+  "customguiscales.config.hotbarScale": "Hotbar scale",
+  "customguiscales.config.tooltipScale": "Tooltip scale"
+}

@@ -1,0 +1,22 @@
+# Gradle / build output
+.gradle/
+build/
+src/generated/
+
+# IDEs
+.idea/
+*.iml
+.eclipse/
+.settings/
+.classpath
+.project
+bin/
+.vscode/
+
+# NeoForge dev runs
+run/
+runs/
+
+# Local toolchain + build logs (downloaded during setup)
+.toolchain/
+build.log

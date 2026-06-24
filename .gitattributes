@@ -1,0 +1,9 @@
+# Normalize line endings: LF in the repo for text files...
+* text=auto eol=lf
+
+# ...except Windows batch scripts, which need CRLF.
+*.bat text eol=crlf
+
+# Treat these as binary (never normalize / never diff as text).
+*.jar binary
+*.png binary

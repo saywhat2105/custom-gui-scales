@@ -1,0 +1,91 @@
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'eclipse'
+    id 'net.neoforged.moddev' version '1.0.21'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+repositories {
+    mavenLocal()
+    maven { url = 'https://maven.parchmentmc.org' }
+}
+
+neoForge {
+    version = neo_version
+
+    // Human-readable parameter names / javadoc. Comment this block out if it fails to resolve.
+    parchment {
+        minecraftVersion = parchment_minecraft_version
+        mappingsVersion = parchment_mappings_version
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        data {
+            data()
+            programArguments.addAll(['--mod', mod_id, '--all',
+                                     '--output', file('src/generated/resources/').absolutePath,
+                                     '--existing', file('src/main/resources/').absolutePath])
+        }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // Nothing extra - the in-game config screen uses NeoForge's built-in ConfigurationScreen.
+}
+
+// Expand the placeholders in neoforge.mods.toml and pack.mcmeta from gradle.properties.
+final Map<String, String> replaceProperties = [
+        minecraft_version      : minecraft_version,
+        minecraft_version_range: minecraft_version_range,
+        neo_version            : neo_version,
+        neo_version_range      : neo_version_range,
+        loader_version_range   : loader_version_range,
+        mod_id                 : mod_id,
+        mod_name               : mod_name,
+        mod_license            : mod_license,
+        mod_version            : mod_version,
+        mod_authors            : mod_authors,
+        mod_description        : mod_description,
+]
+
+tasks.withType(ProcessResources).configureEach {
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties
+    }
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
