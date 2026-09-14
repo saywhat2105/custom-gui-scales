@@ -18,17 +18,10 @@ java {
 
 repositories {
     mavenLocal()
-    maven { url = 'https://maven.parchmentmc.org' }
 }
 
 neoForge {
     version = neo_version
-
-    // Human-readable parameter names / javadoc. Comment this block out if it fails to resolve.
-    parchment {
-        minecraftVersion = parchment_minecraft_version
-        mappingsVersion = parchment_mappings_version
-    }
 
     runs {
         client {

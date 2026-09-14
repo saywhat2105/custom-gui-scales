@@ -7,6 +7,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
+import net.minecraft.resources.ResourceLocation;
 import org.joml.Vector2ic;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -33,10 +34,12 @@ import java.util.List;
 @Mixin(GuiGraphics.class)
 public abstract class GuiGraphicsTooltipMixin {
 
+    // 1.21.4: renderTooltipInternal(Font, List<ClientTooltipComponent>, int, int, ClientTooltipPositioner,
+    // @Nullable ResourceLocation backgroundTexture). The parameter list here must match it exactly.
     @Inject(method = "renderTooltipInternal", at = @At("HEAD"))
     private void customguiscales$scaleTooltipStart(Font font, List<ClientTooltipComponent> components,
                                                    int mouseX, int mouseY, ClientTooltipPositioner positioner,
-                                                   CallbackInfo ci) {
+                                                   ResourceLocation backgroundTexture, CallbackInfo ci) {
         GuiGraphics self = (GuiGraphics) (Object) this;
         PoseStack pose = self.pose();
         pose.pushPose();
@@ -51,7 +54,7 @@ public abstract class GuiGraphicsTooltipMixin {
         int height = components.size() == 1 ? -2 : 0;
         for (ClientTooltipComponent component : components) {
             width = Math.max(width, component.getWidth(font));
-            height += component.getHeight();
+            height += component.getHeight(font);
         }
         // Same position call as vanilla -> the exact top-left corner it is about to draw at.
         Vector2ic corner = positioner.positionTooltip(self.guiWidth(), self.guiHeight(), mouseX, mouseY, width, height);
