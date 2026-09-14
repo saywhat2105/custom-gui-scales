@@ -1,7 +1,6 @@
 package com.saywhat.customguiscales.client;
 
 import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.vertex.PoseStack;
 import com.saywhat.customguiscales.Config;
 import com.saywhat.customguiscales.CustomGuiScales;
 import net.minecraft.client.Minecraft;
@@ -13,6 +12,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import org.joml.Matrix3x2fStack;
 
 import java.util.Set;
 
@@ -27,6 +27,10 @@ import java.util.Set;
  * <p>Pre runs at LOWEST priority so that if another mod cancels the layer we never push an
  * unbalanced pose; Post runs at HIGHEST so we restore the pose before any other mod draws its
  * own overlay for that layer.
+ *
+ * <p>Since the 1.21.6 GUI rewrite {@link GuiGraphics#pose()} is a 2D {@link Matrix3x2fStack}
+ * (no z component). GUI draw calls are recorded into a render state with the pose current at
+ * submit time, so scaling the pose around the layer's render still resizes exactly that layer.
  */
 @EventBusSubscriber(modid = CustomGuiScales.MODID, value = Dist.CLIENT)
 public final class HudScaleHandler {
@@ -42,11 +46,11 @@ public final class HudScaleHandler {
         float anchorX = window.getGuiScaledWidth() / 2.0f;
         float anchorY = window.getGuiScaledHeight();
 
-        PoseStack pose = graphics.pose();
-        pose.pushPose();
-        pose.translate(anchorX, anchorY, 0.0f);
-        pose.scale(m, m, 1.0f);
-        pose.translate(-anchorX, -anchorY, 0.0f);
+        Matrix3x2fStack pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(anchorX, anchorY);
+        pose.scale(m, m);
+        pose.translate(-anchorX, -anchorY);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -55,19 +59,22 @@ public final class HudScaleHandler {
         if (m == 1.0f) {
             return;
         }
-        event.getGuiGraphics().pose().popPose();
+        event.getGuiGraphics().pose().popMatrix();
     }
 
     /**
      * The whole bottom HUD cluster. These all anchor to the bottom-centre, so scaling them by the
      * same factor around the same point keeps them aligned with each other - i.e. they behave as
      * one "hotbar" unit.
+     *
+     * <p>In 1.21.6+ the experience bar and the jump meter (plus the new locator bar) are drawn by
+     * the "contextual info bar" layers, which replaced the old EXPERIENCE_BAR / JUMP_METER layers.
      */
     private static final Set<ResourceLocation> HOTBAR_CLUSTER = Set.of(
             VanillaGuiLayers.HOTBAR,
             VanillaGuiLayers.SELECTED_ITEM_NAME,
-            VanillaGuiLayers.JUMP_METER,
-            VanillaGuiLayers.EXPERIENCE_BAR,
+            VanillaGuiLayers.CONTEXTUAL_INFO_BAR_BACKGROUND,
+            VanillaGuiLayers.CONTEXTUAL_INFO_BAR,
             VanillaGuiLayers.EXPERIENCE_LEVEL,
             VanillaGuiLayers.PLAYER_HEALTH,
             VanillaGuiLayers.ARMOR_LEVEL,

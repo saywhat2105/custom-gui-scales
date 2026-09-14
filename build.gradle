@@ -2,7 +2,7 @@ plugins {
     id 'java-library'
     id 'idea'
     id 'eclipse'
-    id 'net.neoforged.moddev' version '1.0.21'
+    id 'net.neoforged.moddev' version '2.0.147'
 }
 
 version = mod_version
@@ -18,17 +18,10 @@ java {
 
 repositories {
     mavenLocal()
-    maven { url = 'https://maven.parchmentmc.org' }
 }
 
 neoForge {
     version = neo_version
-
-    // Human-readable parameter names / javadoc. Comment this block out if it fails to resolve.
-    parchment {
-        minecraftVersion = parchment_minecraft_version
-        mappingsVersion = parchment_mappings_version
-    }
 
     runs {
         client {
@@ -39,7 +32,7 @@ neoForge {
             programArgument '--nogui'
         }
         data {
-            data()
+            clientData()
             programArguments.addAll(['--mod', mod_id, '--all',
                                      '--output', file('src/generated/resources/').absolutePath,
                                      '--existing', file('src/main/resources/').absolutePath])
