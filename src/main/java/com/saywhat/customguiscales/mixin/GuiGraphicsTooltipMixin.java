@@ -18,14 +18,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 /**
- * Renders tooltips at their own GUI scale without moving them.
+ * Renders tooltips at their own GUI scale while placing them exactly where vanilla would place a
+ * tooltip that was natively that size.
  *
- * <p>Vanilla computes the tooltip's size, asks the positioner where to put it, then draws it with
- * its top-left at that spot. We replicate that exact size + position math from the very same
- * inputs, then scale the pose around that top-left corner. Because the corner is a fixed point of
- * the transform, the tooltip lands exactly where vanilla would have drawn it - only resized. This
- * makes no assumption about coordinate spaces or where the tooltip sits relative to the mouse, so
- * it stays correct even when another mod renders tooltips inside its own transformed pose.
+ * <p>Vanilla decides where a tooltip goes (right of the cursor, or flipped to the left / pushed up
+ * when it would overflow) based on the tooltip's size. If we only scaled the tooltip down around
+ * one corner, that decision would still be the one made for the full-size tooltip - e.g. a long
+ * tooltip gets flipped to the left of the cursor and then shrinks away from it, leaving a gap.
+ *
+ * <p>So: we replicate vanilla's size math, ask the positioner where the FULL-size tooltip will be
+ * drawn ({@code full}) and where a tooltip of the SCALED size should go ({@code scaled}), then
+ * apply a transform that maps the drawn tooltip's top-left from {@code full} onto {@code scaled}
+ * while scaling it. The result flips and clamps correctly for its real rendered size, and always
+ * sits adjacent to the cursor on whichever side fits.
  *
  * <p>Since 1.21.6 tooltips are deferred to the end of the frame ({@code setTooltipForNextFrame}
  * -> {@code renderDeferredTooltip}), but every path still funnels into the NeoForge-patched
@@ -63,21 +68,27 @@ public abstract class GuiGraphicsTooltipMixin {
             return;
         }
 
-        // Same size math as vanilla renderTooltip (1.21.8: getHeight now takes the font).
+        // Same size math as vanilla renderTooltip (1.21.8: getHeight takes the font).
         int width = 0;
         int height = components.size() == 1 ? -2 : 0;
         for (ClientTooltipComponent component : components) {
             width = Math.max(width, component.getWidth(font));
             height += component.getHeight(font);
         }
-        // Same position call as vanilla -> the exact top-left corner it is about to draw at.
-        Vector2ic corner = positioner.positionTooltip(self.guiWidth(), self.guiHeight(), mouseX, mouseY, width, height);
-        float anchorX = corner.x();
-        float anchorY = corner.y();
+        int guiW = self.guiWidth();
+        int guiH = self.guiHeight();
 
-        pose.translate(anchorX, anchorY);
+        // Where vanilla is about to draw the full-size tooltip (its top-left).
+        Vector2ic full = positioner.positionTooltip(guiW, guiH, mouseX, mouseY, width, height);
+        // Where a tooltip of the actual rendered size belongs (flip/clamp decided for THAT size).
+        int scaledW = Math.round(width * m);
+        int scaledH = Math.round(height * m);
+        Vector2ic scaled = positioner.positionTooltip(guiW, guiH, mouseX, mouseY, scaledW, scaledH);
+
+        // Map the drawn tooltip (top-left at `full`) onto the scaled placement (top-left at `scaled`).
+        pose.translate(scaled.x(), scaled.y());
         pose.scale(m, m);
-        pose.translate(-anchorX, -anchorY);
+        pose.translate(-full.x(), -full.y());
     }
 
     @Inject(method = RENDER_TOOLTIP, at = @At("RETURN"))
