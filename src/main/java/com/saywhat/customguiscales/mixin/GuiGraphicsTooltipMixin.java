@@ -7,6 +7,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
+import org.joml.Vector2ic;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -15,16 +16,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 /**
- * Wraps the whole tooltip render (background + text) in a scaled pose so tooltips can use their
- * own GUI scale.
+ * Renders tooltips at their own GUI scale without moving them.
  *
- * <p>We anchor on the {@code mouseX}/{@code mouseY} arguments actually passed into
- * {@code renderTooltipInternal}, NOT the raw screen cursor. Those are in the same coordinate space
- * the tooltip is drawn in, so this stays correct even when another mod (e.g. a guidebook) renders
- * its tooltips inside its own translated/scaled pose.
+ * <p>Vanilla computes the tooltip's size, asks the positioner where to put it, then draws it with
+ * its top-left at that spot. We replicate that exact size + position math from the very same
+ * inputs, then scale the pose around that top-left corner. Because the corner is a fixed point of
+ * the transform, the tooltip lands exactly where vanilla would have drawn it - only resized. This
+ * makes no assumption about coordinate spaces or where the tooltip sits relative to the mouse, so
+ * it stays correct even when another mod renders tooltips inside its own transformed pose.
  *
- * <p>HEAD always pushes a pose and RETURN always pops it, so the matrix stack stays balanced even
- * for early returns (e.g. an empty tooltip).
+ * <p>(NeoForge fires RenderTooltipEvent.Pre inside this method; if another mod moves the tooltip
+ * via that event the anchor could differ slightly, but the default case matches exactly.)
+ *
+ * <p>HEAD always pushes and RETURN always pops, so the matrix stack stays balanced.
  */
 @Mixin(GuiGraphics.class)
 public abstract class GuiGraphicsTooltipMixin {
@@ -38,13 +42,25 @@ public abstract class GuiGraphicsTooltipMixin {
         pose.pushPose();
 
         float m = ScaleUtil.multiplier(Config.get(Config.TOOLTIP_SCALE));
-        if (m == 1.0f) {
+        if (m == 1.0f || components.isEmpty()) {
             return;
         }
-        // Scale around the tooltip's own anchor point (in the current pose space).
-        pose.translate(mouseX, mouseY, 0.0f);
+
+        // Same size math as vanilla renderTooltipInternal.
+        int width = 0;
+        int height = components.size() == 1 ? -2 : 0;
+        for (ClientTooltipComponent component : components) {
+            width = Math.max(width, component.getWidth(font));
+            height += component.getHeight();
+        }
+        // Same position call as vanilla -> the exact top-left corner it is about to draw at.
+        Vector2ic corner = positioner.positionTooltip(self.guiWidth(), self.guiHeight(), mouseX, mouseY, width, height);
+        float anchorX = corner.x();
+        float anchorY = corner.y();
+
+        pose.translate(anchorX, anchorY, 0.0f);
         pose.scale(m, m, 1.0f);
-        pose.translate(-mouseX, -mouseY, 0.0f);
+        pose.translate(-anchorX, -anchorY, 0.0f);
     }
 
     @Inject(method = "renderTooltipInternal", at = @At("RETURN"))
