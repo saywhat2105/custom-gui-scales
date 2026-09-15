@@ -1,8 +1,9 @@
 {
   "required": true,
-  "minVersion": "0.8.5",
+  "minVersion": "0.8",
   "package": "com.saywhat.customguiscales.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "customguiscales.refmap.json",
   "client": [
     "GuiGraphicsTooltipMixin"
   ],

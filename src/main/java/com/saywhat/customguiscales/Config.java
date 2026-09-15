@@ -1,6 +1,6 @@
 package com.saywhat.customguiscales;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
  * Client config. Every value is an <b>absolute</b> GUI scale, exactly like the vanilla
@@ -9,14 +9,14 @@ import net.neoforged.neoforge.common.ModConfigSpec;
  */
 public final class Config {
 
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
     /** Scale of the whole bottom HUD cluster (hotbar, xp bar, health, hunger, armor, air, ...). */
-    public static final ModConfigSpec.DoubleValue HOTBAR_SCALE;
+    public static final ForgeConfigSpec.DoubleValue HOTBAR_SCALE;
     /** Scale of item / text tooltips. */
-    public static final ModConfigSpec.DoubleValue TOOLTIP_SCALE;
+    public static final ForgeConfigSpec.DoubleValue TOOLTIP_SCALE;
 
-    public static final ModConfigSpec SPEC;
+    public static final ForgeConfigSpec SPEC;
 
     private static final double MIN = 0.0;
     private static final double MAX = 8.0;
@@ -51,7 +51,7 @@ public final class Config {
      * Reads a config value safely. Returns {@code 0.0} (= "no override") if the config has not
      * been loaded yet, so callers never have to deal with {@link IllegalStateException}.
      */
-    public static double get(ModConfigSpec.DoubleValue value) {
+    public static double get(ForgeConfigSpec.DoubleValue value) {
         try {
             return value.get();
         } catch (IllegalStateException notLoadedYet) {

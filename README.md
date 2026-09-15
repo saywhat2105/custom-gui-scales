@@ -1,7 +1,8 @@
 # Custom GUI Scales
 
-A client-side **NeoForge** mod for **Minecraft 1.21.1** that lets you render individual HUD
-elements at their *own* GUI scale, independent of the global **GUI Scale** video option.
+A client-side **Forge** mod for **Minecraft 1.20.1** (Forge 47.x; the same jar also loads on
+**NeoForge 47.1.x** for 1.20.1) that lets you render individual HUD elements at their *own* GUI
+scale, independent of the global **GUI Scale** video option.
 
 Want your hotbar big at scale **3** but your inventory tooltips smaller at scale **2**? That's
 exactly what this does.
@@ -33,7 +34,7 @@ additionally accepts fractional values; the in-game sliders round to whole numbe
 ## Building
 
 > [!IMPORTANT]
-> The NeoForge 1.21.1 toolchain uses **Gradle 8.8**, which only runs on **Java 17–22**.
+> The ForgeGradle 6 toolchain uses **Gradle 8.8**, which only runs on **Java 17–22**.
 > You have Java 25 on this machine, which Gradle 8.8 will refuse to start on. Build with a
 > **JDK 21** instead. A copy was already downloaded to `.toolchain/jdk-21.0.11+10` while setting
 > this up — you can reuse it or install your own.
@@ -52,8 +53,9 @@ export JAVA_HOME="$PWD/.toolchain/jdk-21.0.11+10"
 ./gradlew build
 ```
 
-The finished mod jar lands in `build/libs/customguiscales-1.0.0.jar`. Drop it in your `mods`
-folder (you also need NeoForge for 1.21.1 installed).
+The finished (reobfuscated) mod jar lands in `build/libs/customguiscales-forge-1.0.3+1.20.1.jar`.
+Drop it in your `mods` folder (you also need Forge 47.x or NeoForge 47.1.x for 1.20.1 installed).
+Minecraft 1.20.1 itself needs Java 17; Gradle auto-downloads a JDK 17 toolchain for compiling.
 
 ### Running it in a dev client
 
@@ -64,19 +66,21 @@ export JAVA_HOME="$PWD/.toolchain/jdk-21.0.11+10"
 
 ### Version pins
 
-`gradle.properties` pins `neo_version=21.1.93`. If that exact build is gone from the NeoForge
-maven, bump it to any current `21.1.x` from <https://projects.neoforged.net/neoforged/neoforge>.
-The Parchment mappings block in `build.gradle` is optional — comment it out if it won't resolve.
+`gradle.properties` pins `forge_version=47.4.10`. Any Forge 47.x build works for developing;
+the published jar declares `forge` `[47,)` and `minecraft` `[1.20.1,1.20.2)` as CLIENT-side
+dependencies with `displayTest = "IGNORE_ALL_VERSION"`, so servers never require it.
 
 ## How it works
 
-- **HUD layers (hotbar, etc.)** — handled with NeoForge's `RenderGuiLayerEvent`
-  (`HudScaleHandler`). Before a targeted layer draws, we push a pose scaled around the
+- **HUD overlays (hotbar, etc.)** — handled with Forge's `RenderGuiOverlayEvent`
+  (`HudScaleHandler`). Before a targeted overlay draws, we push a pose scaled around the
   bottom-centre anchor (so the element grows/shrinks in place); after it draws, we pop. The scale
   factor is `desiredScale / globalGuiScale`, so the result matches an absolute GUI scale.
 - **Tooltips** — there is no event that brackets the tooltip draw, so a small Mixin
   (`GuiGraphicsTooltipMixin`) wraps `GuiGraphics.renderTooltipInternal` with a scaled pose,
-  anchored at the cursor.
+  placed where vanilla would put a tooltip of the scaled size (so it flips/clamps correctly).
+  The mixin targets are remapped to SRG names through `customguiscales.refmap.json`, generated
+  by the Mixin annotation processor and shipped in the jar.
 
 ### Known limitations
 
@@ -94,12 +98,14 @@ src/main/java/com/saywhat/customguiscales/
 ├── Config.java                       config spec (per-element scales)
 ├── client/
 │   ├── ClientInit.java               registers the in-game config screen
-│   ├── HudScaleHandler.java          rescales HUD layers via RenderGuiLayerEvent
+│   ├── GuiScalesScreen.java          the settings screen (two sliders)
+│   ├── HudScaleHandler.java          rescales HUD overlays via RenderGuiOverlayEvent
+│   ├── SettingsIntegration.java      adds the button row to Video Settings
 │   └── ScaleUtil.java                scale-factor math
 └── mixin/
     └── GuiGraphicsTooltipMixin.java  rescales tooltips
 src/main/resources/
-├── META-INF/neoforge.mods.toml
+├── META-INF/mods.toml
 ├── customguiscales.mixins.json
 ├── pack.mcmeta
 └── assets/customguiscales/lang/en_us.json

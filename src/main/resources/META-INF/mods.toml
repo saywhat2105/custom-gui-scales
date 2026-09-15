@@ -10,20 +10,19 @@ authors = "${mod_authors}"
 description = '''
 ${mod_description}
 '''
-
-[[mixins]]
-config = "customguiscales.mixins.json"
+# Client-only mod: servers must never require it and clients may join servers without it.
+displayTest = "IGNORE_ALL_VERSION"
 
 [[dependencies.${mod_id}]]
-modId = "neoforge"
-type = "required"
-versionRange = "${neo_version_range}"
+modId = "forge"
+mandatory = true
+versionRange = "${forge_version_range}"
 ordering = "NONE"
 side = "CLIENT"
 
 [[dependencies.${mod_id}]]
 modId = "minecraft"
-type = "required"
+mandatory = true
 versionRange = "${minecraft_version_range}"
 ordering = "NONE"
 side = "CLIENT"

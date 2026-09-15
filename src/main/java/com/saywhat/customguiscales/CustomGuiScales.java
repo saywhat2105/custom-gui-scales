@@ -1,12 +1,11 @@
 package com.saywhat.customguiscales;
 
 import com.saywhat.customguiscales.client.ClientInit;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.loading.FMLEnvironment;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 /**
  * Custom GUI Scales - lets you render individual HUD elements (hotbar, tooltips, etc.)
@@ -20,15 +19,15 @@ public final class CustomGuiScales {
 
     public static final String MODID = "customguiscales";
 
-    public CustomGuiScales(IEventBus modBus, ModContainer container) {
+    public CustomGuiScales() {
         // Register the client config spec. CLIENT configs are only actually loaded on the
         // physical client; registering on a dedicated server is harmless.
-        container.registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
 
         // Everything that touches rendering / screens is client-only. Guarding the call keeps
         // the client-only classes from ever being loaded on a dedicated server.
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            ClientInit.init(container);
+            ClientInit.init();
         }
     }
 }

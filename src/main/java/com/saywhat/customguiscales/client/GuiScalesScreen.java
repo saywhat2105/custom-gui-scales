@@ -4,9 +4,9 @@ import com.saywhat.customguiscales.Config;
 import net.minecraft.client.OptionInstance;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.options.OptionsSubScreen;
+import net.minecraft.client.gui.screens.SimpleOptionsSubScreen;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
  * A vanilla-styled settings sub-screen with an absolute-scale slider for each customizable
@@ -17,19 +17,17 @@ import net.neoforged.neoforge.common.ModConfigSpec;
  * to the config live while dragging (so the change previews instantly) and persisted to disk when
  * the screen closes.
  */
-public class GuiScalesScreen extends OptionsSubScreen {
+public class GuiScalesScreen extends SimpleOptionsSubScreen {
 
     public GuiScalesScreen(Screen lastScreen, Options options) {
-        super(lastScreen, options, Component.translatable("customguiscales.screen.title"));
+        super(lastScreen, options, Component.translatable("customguiscales.screen.title"),
+                new OptionInstance<?>[] {
+                        slider("customguiscales.config.hotbarScale", Config.HOTBAR_SCALE),
+                        slider("customguiscales.config.tooltipScale", Config.TOOLTIP_SCALE)
+                });
     }
 
-    @Override
-    protected void addOptions() {
-        this.list.addBig(slider("customguiscales.config.hotbarScale", Config.HOTBAR_SCALE));
-        this.list.addBig(slider("customguiscales.config.tooltipScale", Config.TOOLTIP_SCALE));
-    }
-
-    private static OptionInstance<Integer> slider(String captionKey, ModConfigSpec.DoubleValue cfg) {
+    private static OptionInstance<Integer> slider(String captionKey, ForgeConfigSpec.DoubleValue cfg) {
         int initial = clamp((int) Math.round(Config.get(cfg)));
         return new OptionInstance<>(
                 captionKey,

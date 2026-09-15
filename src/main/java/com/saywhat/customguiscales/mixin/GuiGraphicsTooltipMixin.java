@@ -30,7 +30,7 @@ import java.util.List;
  * while scaling it. The result flips and clamps correctly for its real rendered size, and always
  * sits adjacent to the cursor on whichever side fits.
  *
- * <p>(NeoForge fires RenderTooltipEvent.Pre inside this method; if another mod moves the tooltip
+ * <p>(Forge fires RenderTooltipEvent.Pre inside this method; if another mod moves the tooltip
  * via that event the anchor could differ slightly, but the default case matches exactly.)
  *
  * <p>HEAD always pushes and RETURN always pops, so the matrix stack stays balanced.

@@ -7,33 +7,33 @@ import com.saywhat.customguiscales.CustomGuiScales;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
-import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import java.util.Set;
 
 /**
- * Rescales individual HUD layers (hotbar, xp bar, health, ...) by wrapping the vanilla render of
- * each layer in a scaled pose.
+ * Rescales individual HUD overlays (hotbar, xp bar, health, ...) by wrapping the vanilla render
+ * of each overlay in a scaled pose.
  *
- * <p>These layers are all anchored to the bottom-centre of the screen, so we scale around that
+ * <p>These overlays are all anchored to the bottom-centre of the screen, so we scale around that
  * anchor point: the element grows / shrinks in place instead of sliding toward the top-left
  * corner.
  *
- * <p>Pre runs at LOWEST priority so that if another mod cancels the layer we never push an
+ * <p>Pre runs at LOWEST priority so that if another mod cancels the overlay we never push an
  * unbalanced pose; Post runs at HIGHEST so we restore the pose before any other mod draws its
- * own overlay for that layer.
+ * own overlay for that element.
  */
-@EventBusSubscriber(modid = CustomGuiScales.MODID, value = Dist.CLIENT)
+@Mod.EventBusSubscriber(modid = CustomGuiScales.MODID, value = Dist.CLIENT)
 public final class HudScaleHandler {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void onLayerPre(RenderGuiLayerEvent.Pre event) {
-        float m = ScaleUtil.multiplier(desiredScaleFor(event.getName()));
+    public static void onOverlayPre(RenderGuiOverlayEvent.Pre event) {
+        float m = ScaleUtil.multiplier(desiredScaleFor(event.getOverlay().id()));
         if (m == 1.0f) {
             return;
         }
@@ -50,8 +50,8 @@ public final class HudScaleHandler {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onLayerPost(RenderGuiLayerEvent.Post event) {
-        float m = ScaleUtil.multiplier(desiredScaleFor(event.getName()));
+    public static void onOverlayPost(RenderGuiOverlayEvent.Post event) {
+        float m = ScaleUtil.multiplier(desiredScaleFor(event.getOverlay().id()));
         if (m == 1.0f) {
             return;
         }
@@ -62,22 +62,24 @@ public final class HudScaleHandler {
      * The whole bottom HUD cluster. These all anchor to the bottom-centre, so scaling them by the
      * same factor around the same point keeps them aligned with each other - i.e. they behave as
      * one "hotbar" unit.
+     *
+     * <p>In Forge 1.20.1 the experience level number is drawn by the EXPERIENCE_BAR overlay itself
+     * (ForgeGui#renderExperience), so it scales together with the bar.
      */
     private static final Set<ResourceLocation> HOTBAR_CLUSTER = Set.of(
-            VanillaGuiLayers.HOTBAR,
-            VanillaGuiLayers.SELECTED_ITEM_NAME,
-            VanillaGuiLayers.JUMP_METER,
-            VanillaGuiLayers.EXPERIENCE_BAR,
-            VanillaGuiLayers.EXPERIENCE_LEVEL,
-            VanillaGuiLayers.PLAYER_HEALTH,
-            VanillaGuiLayers.ARMOR_LEVEL,
-            VanillaGuiLayers.FOOD_LEVEL,
-            VanillaGuiLayers.VEHICLE_HEALTH,
-            VanillaGuiLayers.AIR_LEVEL);
+            VanillaGuiOverlay.HOTBAR.id(),
+            VanillaGuiOverlay.ITEM_NAME.id(),
+            VanillaGuiOverlay.JUMP_BAR.id(),
+            VanillaGuiOverlay.EXPERIENCE_BAR.id(),
+            VanillaGuiOverlay.PLAYER_HEALTH.id(),
+            VanillaGuiOverlay.ARMOR_LEVEL.id(),
+            VanillaGuiOverlay.FOOD_LEVEL.id(),
+            VanillaGuiOverlay.MOUNT_HEALTH.id(),
+            VanillaGuiOverlay.AIR_LEVEL.id());
 
-    /** Maps a vanilla layer id to the configured absolute scale, or 0 if we don't touch it. */
-    private static double desiredScaleFor(ResourceLocation layer) {
-        return HOTBAR_CLUSTER.contains(layer) ? Config.get(Config.HOTBAR_SCALE) : 0.0;
+    /** Maps a vanilla overlay id to the configured absolute scale, or 0 if we don't touch it. */
+    private static double desiredScaleFor(ResourceLocation overlay) {
+        return HOTBAR_CLUSTER.contains(overlay) ? Config.get(Config.HOTBAR_SCALE) : 0.0;
     }
 
     private HudScaleHandler() {}

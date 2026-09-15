@@ -1,72 +1,70 @@
 plugins {
-    id 'java-library'
-    id 'idea'
     id 'eclipse'
-    id 'net.neoforged.moddev' version '1.0.21'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
 }
 
 version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = mod_id
+    archivesName = 'customguiscales-forge'
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    // Minecraft 1.20.1 runs on Java 17; Gradle itself is run on JDK 21 (see README).
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    // Makes OptionInstance.ValueSet public (see the file for why). FML also reads this file from
+    // the finished jar's META-INF at runtime, on both Forge 47 and NeoForge 47.1.
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            arg '-mixin.config=customguiscales.mixins.json'
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+        client {
+        }
+        server {
+            args '--nogui'
+        }
+    }
+}
+
+mixin {
+    add sourceSets.main, 'customguiscales.refmap.json'
+    config 'customguiscales.mixins.json'
 }
 
 repositories {
-    mavenLocal()
-    maven { url = 'https://maven.parchmentmc.org' }
-}
-
-neoForge {
-    version = neo_version
-
-    // Human-readable parameter names / javadoc. Comment this block out if it fails to resolve.
-    parchment {
-        minecraftVersion = parchment_minecraft_version
-        mappingsVersion = parchment_mappings_version
-    }
-
-    runs {
-        client {
-            client()
-        }
-        server {
-            server()
-            programArgument '--nogui'
-        }
-        data {
-            data()
-            programArguments.addAll(['--mod', mod_id, '--all',
-                                     '--output', file('src/generated/resources/').absolutePath,
-                                     '--existing', file('src/main/resources/').absolutePath])
-        }
-        configureEach {
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-            logLevel = org.slf4j.event.Level.DEBUG
-        }
-    }
-
-    mods {
-        "${mod_id}" {
-            sourceSet sourceSets.main
-        }
-    }
 }
 
 dependencies {
-    // Nothing extra - the in-game config screen uses NeoForge's built-in ConfigurationScreen.
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
-// Expand the placeholders in neoforge.mods.toml and pack.mcmeta from gradle.properties.
+// Expand the placeholders in mods.toml and pack.mcmeta from gradle.properties.
 final Map<String, String> replaceProperties = [
         minecraft_version      : minecraft_version,
         minecraft_version_range: minecraft_version_range,
-        neo_version            : neo_version,
-        neo_version_range      : neo_version_range,
+        forge_version          : forge_version,
+        forge_version_range    : forge_version_range,
         loader_version_range   : loader_version_range,
         mod_id                 : mod_id,
         mod_name               : mod_name,
@@ -76,11 +74,31 @@ final Map<String, String> replaceProperties = [
         mod_description        : mod_description,
 ]
 
-tasks.withType(ProcessResources).configureEach {
+tasks.named('processResources', ProcessResources).configure {
     inputs.properties replaceProperties
-    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
         expand replaceProperties
     }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_id,
+                'Specification-Vendor'  : mod_authors,
+                'Specification-Version' : '1',
+                'Implementation-Title'  : project.name,
+                'Implementation-Version': project.version,
+                'Implementation-Vendor' : mod_authors,
+        ])
+    }
+    // Forge 1.20.1 runs Minecraft with SRG-obfuscated names; the production jar must be
+    // reobfuscated so its bytecode (and the mixin refmap) reference those names.
+    finalizedBy 'reobfJar'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
 idea {
