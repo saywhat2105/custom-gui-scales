@@ -77,6 +77,7 @@ public final class HudScaleHandler {
     private static final Set<Identifier> HOTBAR_CLUSTER = Set.of(
             VanillaGuiLayers.HOTBAR,
             VanillaGuiLayers.SELECTED_ITEM_NAME,
+            VanillaGuiLayers.SPECTATOR_TOOLTIP,
             VanillaGuiLayers.CONTEXTUAL_INFO_BAR_BACKGROUND,
             VanillaGuiLayers.CONTEXTUAL_INFO_BAR,
             VanillaGuiLayers.EXPERIENCE_LEVEL,
