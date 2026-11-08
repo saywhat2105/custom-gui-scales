@@ -4,8 +4,8 @@ import com.mojang.blaze3d.platform.Window;
 import com.saywhat.customguiscales.Config;
 import com.saywhat.customguiscales.CustomGuiScales;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -28,9 +28,10 @@ import java.util.Set;
  * unbalanced pose; Post runs at HIGHEST so we restore the pose before any other mod draws its
  * own overlay for that layer.
  *
- * <p>Since the 1.21.6 GUI rewrite {@link GuiGraphics#pose()} is a 2D {@link Matrix3x2fStack}
- * (no z component). GUI draw calls are recorded into a render state with the pose current at
- * submit time, so scaling the pose around the layer's render still resizes exactly that layer.
+ * <p>Since the 1.21.6 GUI rewrite the GUI pose is a 2D {@link Matrix3x2fStack} (no z component).
+ * In 26.x the class is called {@link GuiGraphicsExtractor} (formerly GuiGraphics): GUI draw calls
+ * are extracted into a render state with the pose current at submit time, so scaling the pose
+ * around the layer's render still resizes exactly that layer.
  */
 @EventBusSubscriber(modid = CustomGuiScales.MODID, value = Dist.CLIENT)
 public final class HudScaleHandler {
@@ -41,7 +42,7 @@ public final class HudScaleHandler {
         if (m == 1.0f) {
             return;
         }
-        GuiGraphics graphics = event.getGuiGraphics();
+        GuiGraphicsExtractor graphics = event.getGuiGraphics();
         Window window = Minecraft.getInstance().getWindow();
         float anchorX = window.getGuiScaledWidth() / 2.0f;
         float anchorY = window.getGuiScaledHeight();
@@ -69,8 +70,11 @@ public final class HudScaleHandler {
      *
      * <p>In 1.21.6+ the experience bar and the jump meter (plus the new locator bar) are drawn by
      * the "contextual info bar" layers, which replaced the old EXPERIENCE_BAR / JUMP_METER layers.
+     * Checked against 26.2 (Hud#registerVanillaLayers): the bottom cluster is still exactly these ten
+     * layers; the HOTBAR layer also draws the spectator hotbar. AFTER_CAMERA_DECORATIONS only starts
+     * a new GUI stratum and draws nothing, so it is not part of the cluster.
      */
-    private static final Set<ResourceLocation> HOTBAR_CLUSTER = Set.of(
+    private static final Set<Identifier> HOTBAR_CLUSTER = Set.of(
             VanillaGuiLayers.HOTBAR,
             VanillaGuiLayers.SELECTED_ITEM_NAME,
             VanillaGuiLayers.CONTEXTUAL_INFO_BAR_BACKGROUND,
@@ -83,7 +87,7 @@ public final class HudScaleHandler {
             VanillaGuiLayers.AIR_LEVEL);
 
     /** Maps a vanilla layer id to the configured absolute scale, or 0 if we don't touch it. */
-    private static double desiredScaleFor(ResourceLocation layer) {
+    private static double desiredScaleFor(Identifier layer) {
         return HOTBAR_CLUSTER.contains(layer) ? Config.get(Config.HOTBAR_SCALE) : 0.0;
     }
 

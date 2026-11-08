@@ -1,5 +1,3 @@
-modLoader = "javafml"
-loaderVersion = "${loader_version_range}"
 license = "${mod_license}"
 
 [[mods]]
@@ -14,6 +12,8 @@ ${mod_description}
 [[mixins]]
 config = "customguiscales.mixins.json"
 
+# Client-only mod: every dependency only applies on the physical client, and the mod registers no
+# network payloads or registry entries, so servers never require it.
 [[dependencies.${mod_id}]]
 modId = "neoforge"
 type = "required"

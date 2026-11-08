@@ -1,27 +1,29 @@
 plugins {
     id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
     id 'idea'
-    id 'eclipse'
-    id 'net.neoforged.moddev' version '2.0.147'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
 }
 
 version = mod_version
 group = mod_group_id
 
+repositories {
+    // Add here additional repositories if required by some of the dependencies below.
+}
+
 base {
     archivesName = mod_id
 }
 
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
-}
-
-repositories {
-    mavenLocal()
-}
+// Mojang ships Java 25 to end users in 26.2, so mods should target Java 25.
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 neoForge {
-    version = neo_version
+    version = project.neo_version
 
     runs {
         client {
@@ -31,12 +33,6 @@ neoForge {
             server()
             programArgument '--nogui'
         }
-        data {
-            clientData()
-            programArguments.addAll(['--mod', mod_id, '--all',
-                                     '--output', file('src/generated/resources/').absolutePath,
-                                     '--existing', file('src/main/resources/').absolutePath])
-        }
         configureEach {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             logLevel = org.slf4j.event.Level.DEBUG
@@ -45,35 +41,41 @@ neoForge {
 
     mods {
         "${mod_id}" {
-            sourceSet sourceSets.main
+            sourceSet(sourceSets.main)
         }
     }
 }
 
 dependencies {
-    // Nothing extra - the in-game config screen uses NeoForge's built-in ConfigurationScreen.
+    // Nothing extra - the settings screen only uses vanilla / NeoForge classes.
 }
 
-// Expand the placeholders in neoforge.mods.toml and pack.mcmeta from gradle.properties.
-final Map<String, String> replaceProperties = [
-        minecraft_version      : minecraft_version,
-        minecraft_version_range: minecraft_version_range,
-        neo_version            : neo_version,
-        neo_version_range      : neo_version_range,
-        loader_version_range   : loader_version_range,
-        mod_id                 : mod_id,
-        mod_name               : mod_name,
-        mod_license            : mod_license,
-        mod_version            : mod_version,
-        mod_authors            : mod_authors,
-        mod_description        : mod_description,
-]
-
-tasks.withType(ProcessResources).configureEach {
+// Expands the placeholders in src/main/templates (META-INF/neoforge.mods.toml) from gradle.properties.
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+    ]
     inputs.properties replaceProperties
-    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties
-    }
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+// Include the output of "generateModMetadata" as an input directory for the build
+// (works with both Gradle builds and the IDE).
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
 idea {

@@ -3,10 +3,10 @@ package com.saywhat.customguiscales.mixin;
 import com.saywhat.customguiscales.Config;
 import com.saywhat.customguiscales.client.ScaleUtil;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix3x2fStack;
 import org.joml.Vector2ic;
@@ -32,12 +32,14 @@ import java.util.List;
  * while scaling it. The result flips and clamps correctly for its real rendered size, and always
  * sits adjacent to the cursor on whichever side fits.
  *
- * <p>Since 1.21.6 tooltips are deferred to the end of the frame ({@code setTooltipForNextFrame}
- * -> {@code renderDeferredTooltip}), but every path still funnels into the NeoForge-patched
- * 7-argument {@code renderTooltip(Font, List, int, int, ClientTooltipPositioner, ResourceLocation,
- * ItemStack)} - the 6-argument overload simply delegates to it - and that is the method that does
- * the size math, calls the positioner and draws the background + text. We target exactly that
- * overload by descriptor so the 6-argument delegate is never double-scaled.
+ * <p>In 26.x GuiGraphics is called {@link GuiGraphicsExtractor} and {@code renderTooltip} is called
+ * {@code tooltip}. Tooltips are still deferred to the end of the frame
+ * ({@code setTooltipForNextFrame} -> {@code setTooltipForNextFrameInternal} -> the deferred
+ * {@code extractDeferredElements}), and every path still funnels into the NeoForge-patched
+ * 7-argument {@code tooltip(Font, List, int, int, ClientTooltipPositioner, Identifier, ItemStack)}
+ * - the 6-argument overload simply delegates to it - and that is the method that does the size
+ * math, calls the positioner and draws the background + text. We target exactly that overload by
+ * descriptor so the 6-argument delegate is never double-scaled.
  *
  * <p>(NeoForge fires RenderTooltipEvent.Pre inside this method; if another mod moves the tooltip
  * via that event the anchor could differ slightly, but the default case matches exactly.)
@@ -45,21 +47,21 @@ import java.util.List;
  * <p>HEAD always pushes and RETURN always pops (including the early return when the Pre event is
  * cancelled), so the matrix stack stays balanced.
  */
-@Mixin(GuiGraphics.class)
+@Mixin(GuiGraphicsExtractor.class)
 public abstract class GuiGraphicsTooltipMixin {
 
-    private static final String RENDER_TOOLTIP =
-            "renderTooltip(Lnet/minecraft/client/gui/Font;Ljava/util/List;II"
+    private static final String TOOLTIP =
+            "tooltip(Lnet/minecraft/client/gui/Font;Ljava/util/List;II"
                     + "Lnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;"
-                    + "Lnet/minecraft/resources/ResourceLocation;"
+                    + "Lnet/minecraft/resources/Identifier;"
                     + "Lnet/minecraft/world/item/ItemStack;)V";
 
-    @Inject(method = RENDER_TOOLTIP, at = @At("HEAD"))
+    @Inject(method = TOOLTIP, at = @At("HEAD"))
     private void customguiscales$scaleTooltipStart(Font font, List<ClientTooltipComponent> components,
                                                    int mouseX, int mouseY, ClientTooltipPositioner positioner,
-                                                   ResourceLocation backgroundTexture, ItemStack tooltipStack,
+                                                   Identifier backgroundTexture, ItemStack tooltipStack,
                                                    CallbackInfo ci) {
-        GuiGraphics self = (GuiGraphics) (Object) this;
+        GuiGraphicsExtractor self = (GuiGraphicsExtractor) (Object) this;
         Matrix3x2fStack pose = self.pose();
         pose.pushMatrix();
 
@@ -68,7 +70,7 @@ public abstract class GuiGraphicsTooltipMixin {
             return;
         }
 
-        // Same size math as vanilla renderTooltip (1.21.8: getHeight takes the font).
+        // Same size math as vanilla GuiGraphicsExtractor#tooltip (26.2: getHeight takes the font).
         int width = 0;
         int height = components.size() == 1 ? -2 : 0;
         for (ClientTooltipComponent component : components) {
@@ -91,8 +93,8 @@ public abstract class GuiGraphicsTooltipMixin {
         pose.translate(-full.x(), -full.y());
     }
 
-    @Inject(method = RENDER_TOOLTIP, at = @At("RETURN"))
+    @Inject(method = TOOLTIP, at = @At("RETURN"))
     private void customguiscales$scaleTooltipEnd(CallbackInfo ci) {
-        ((GuiGraphics) (Object) this).pose().popMatrix();
+        ((GuiGraphicsExtractor) (Object) this).pose().popMatrix();
     }
 }

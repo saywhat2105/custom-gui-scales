@@ -27,7 +27,8 @@ public final class CustomGuiScales {
 
         // Everything that touches rendering / screens is client-only. Guarding the call keeps
         // the client-only classes from ever being loaded on a dedicated server.
-        if (FMLEnvironment.dist == Dist.CLIENT) {
+        // (FML 11 / NeoForge 26.x replaced the old FMLEnvironment.dist field with getDist().)
+        if (FMLEnvironment.getDist() == Dist.CLIENT) {
             ClientInit.init(container);
         }
     }

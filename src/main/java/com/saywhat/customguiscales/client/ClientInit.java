@@ -16,8 +16,9 @@ public final class ClientInit {
         container.registerExtensionPoint(IConfigScreenFactory.class,
                 (mod, parent) -> new GuiScalesScreen(parent, Minecraft.getInstance().options));
 
-        // HudScaleHandler / SettingsIntegration register themselves via @EventBusSubscriber; the
-        // tooltip mixin is wired up through customguiscales.mixins.json. Nothing else to do here.
+        // HudScaleHandler registers itself via @EventBusSubscriber; the tooltip mixin and the
+        // Video Settings row (VideoSettingsScreenMixin -> SettingsIntegration) are wired up through
+        // customguiscales.mixins.json. Nothing else to do here.
     }
 
     private ClientInit() {}
