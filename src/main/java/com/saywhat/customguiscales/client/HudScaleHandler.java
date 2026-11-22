@@ -14,58 +14,35 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
- * Rescales individual HUD layers (hotbar, xp bar, health, ...) by wrapping the vanilla render of
- * each layer in a scaled pose.
+ * Rescales the bottom HUD cluster (hotbar, xp bar, health, hunger, ...) by wrapping the render of
+ * each of its layers in a pose scaled around the bottom-centre anchor, so the cluster grows /
+ * shrinks in place as one unit.
  *
- * <p>These layers are all anchored to the bottom-centre of the screen, so we scale around that
- * anchor point: the element grows / shrinks in place instead of sliding toward the top-left
- * corner.
+ * <p>The scaled pose covers the layer's WHOLE render, including what other mods draw for that layer
+ * from its Pre/Post events (e.g. overlays that decorate the hunger bar): Pre pushes at HIGHEST
+ * priority and Post pops at LOWEST. Because a cancelled Pre means Post never fires, a LOWEST Pre
+ * handler that also receives cancelled events pops in that case, and any push whose Post still
+ * never arrived is unwound at the next layer (a new GuiGraphics is created every frame, so nothing
+ * can leak across frames).
  *
- * <p>Pre runs at LOWEST priority so that if another mod cancels the layer we never push an
- * unbalanced pose; Post runs at HIGHEST so we restore the pose before any other mod draws its
- * own overlay for that layer.
+ * <p>Besides the vanilla layers, the cluster includes layers other mods register to draw on top of
+ * it - AppleSkin's by default, plus any ids listed in the {@code extraHotbarLayers} config option.
+ * Those mods position their layers exactly like vanilla (relative to the bottom-centre), so the same
+ * transform keeps them aligned with the scaled vanilla icons.
  */
 @EventBusSubscriber(modid = CustomGuiScales.MODID, value = Dist.CLIENT)
 public final class HudScaleHandler {
 
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void onLayerPre(RenderGuiLayerEvent.Pre event) {
-        float m = ScaleUtil.multiplier(desiredScaleFor(event.getName()));
-        if (m == 1.0f) {
-            return;
-        }
-        GuiGraphics graphics = event.getGuiGraphics();
-        Window window = Minecraft.getInstance().getWindow();
-        float anchorX = window.getGuiScaledWidth() / 2.0f;
-        float anchorY = window.getGuiScaledHeight();
-
-        PoseStack pose = graphics.pose();
-        pose.pushPose();
-        pose.translate(anchorX, anchorY, 0.0f);
-        pose.scale(m, m, 1.0f);
-        pose.translate(-anchorX, -anchorY, 0.0f);
-    }
-
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onLayerPost(RenderGuiLayerEvent.Post event) {
-        float m = ScaleUtil.multiplier(desiredScaleFor(event.getName()));
-        if (m == 1.0f) {
-            return;
-        }
-        event.getGuiGraphics().pose().popPose();
-    }
-
-    /**
-     * The whole bottom HUD cluster. These all anchor to the bottom-centre, so scaling them by the
-     * same factor around the same point keeps them aligned with each other - i.e. they behave as
-     * one "hotbar" unit.
-     */
-    private static final Set<ResourceLocation> HOTBAR_CLUSTER = Set.of(
+    /** Vanilla layers that make up the bottom HUD cluster. */
+    private static final Set<ResourceLocation> VANILLA_CLUSTER = Set.of(
             VanillaGuiLayers.HOTBAR,
             VanillaGuiLayers.SELECTED_ITEM_NAME,
+            VanillaGuiLayers.SPECTATOR_TOOLTIP,
             VanillaGuiLayers.JUMP_METER,
             VanillaGuiLayers.EXPERIENCE_BAR,
             VanillaGuiLayers.EXPERIENCE_LEVEL,
@@ -75,9 +52,108 @@ public final class HudScaleHandler {
             VanillaGuiLayers.VEHICLE_HEALTH,
             VanillaGuiLayers.AIR_LEVEL);
 
-    /** Maps a vanilla layer id to the configured absolute scale, or 0 if we don't touch it. */
-    private static double desiredScaleFor(ResourceLocation layer) {
-        return HOTBAR_CLUSTER.contains(layer) ? Config.get(Config.HOTBAR_SCALE) : 0.0;
+    /**
+     * Known mod layers that draw on the cluster. AppleSkin registers these around the vanilla health
+     * and food layers: two that only record vanilla's bar heights, and the health-restored,
+     * hunger-restored, saturation (the outline around the hunger icons) and exhaustion overlays.
+     * Ids of mods that are not installed simply never occur.
+     */
+    private static final Set<ResourceLocation> KNOWN_MOD_LAYERS = Set.of(
+            ResourceLocation.fromNamespaceAndPath("appleskin", "health_offset"),
+            ResourceLocation.fromNamespaceAndPath("appleskin", "food_offset"),
+            ResourceLocation.fromNamespaceAndPath("appleskin", "health_restored"),
+            ResourceLocation.fromNamespaceAndPath("appleskin", "hunger_restored"),
+            ResourceLocation.fromNamespaceAndPath("appleskin", "saturation_level"),
+            ResourceLocation.fromNamespaceAndPath("appleskin", "exhaustion_level"));
+
+    /** Layer we pushed a scaled pose for and have not popped yet (null = nothing pushed). */
+    private static ResourceLocation pushedLayer;
+    /** The GuiGraphics that push was made on. */
+    private static GuiGraphics pushedGraphics;
+
+    /** Parsed {@code extraHotbarLayers}, rebuilt whenever the config list changes. */
+    private static List<? extends String> extraSource;
+    private static Set<ResourceLocation> extraLayers = Set.of();
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onLayerPre(RenderGuiLayerEvent.Pre event) {
+        GuiGraphics graphics = event.getGuiGraphics();
+        unwindStalePush(graphics);
+        if (!isHotbarLayer(event.getName())) {
+            return;
+        }
+        float m = ScaleUtil.multiplier(Config.get(Config.HOTBAR_SCALE));
+        if (m == 1.0f) {
+            return;
+        }
+        Window window = Minecraft.getInstance().getWindow();
+        float anchorX = window.getGuiScaledWidth() / 2.0f;
+        float anchorY = window.getGuiScaledHeight();
+
+        PoseStack pose = graphics.pose();
+        pose.pushPose();
+        pose.translate(anchorX, anchorY, 0.0f);
+        pose.scale(m, m, 1.0f);
+        pose.translate(-anchorX, -anchorY, 0.0f);
+        pushedLayer = event.getName();
+        pushedGraphics = graphics;
+    }
+
+    /** Another handler cancelled the layer, so its Post will never fire: pop now. */
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
+    public static void onLayerPreCancelled(RenderGuiLayerEvent.Pre event) {
+        if (event.isCanceled()) {
+            popIfPushed(event.getName(), event.getGuiGraphics());
+        }
+    }
+
+    /** LOWEST so every other mod's Post overlay for this layer is drawn while still scaled. */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onLayerPost(RenderGuiLayerEvent.Post event) {
+        popIfPushed(event.getName(), event.getGuiGraphics());
+    }
+
+    private static void popIfPushed(ResourceLocation layer, GuiGraphics graphics) {
+        if (pushedLayer != null && pushedLayer.equals(layer) && pushedGraphics == graphics) {
+            graphics.pose().popPose();
+            pushedLayer = null;
+            pushedGraphics = null;
+        }
+    }
+
+    /**
+     * Defensive: a push whose Post never arrived (e.g. a handler registered after ours at LOWEST
+     * cancelled the layer). Unwind it on the same frame's GuiGraphics; a previous frame's
+     * GuiGraphics is already gone, so just forget it.
+     */
+    private static void unwindStalePush(GuiGraphics graphics) {
+        if (pushedLayer != null) {
+            if (pushedGraphics == graphics) {
+                graphics.pose().popPose();
+            }
+            pushedLayer = null;
+            pushedGraphics = null;
+        }
+    }
+
+    private static boolean isHotbarLayer(ResourceLocation layer) {
+        return VANILLA_CLUSTER.contains(layer) || KNOWN_MOD_LAYERS.contains(layer) || extraLayers().contains(layer);
+    }
+
+    private static Set<ResourceLocation> extraLayers() {
+        List<? extends String> current = Config.getList(Config.EXTRA_HOTBAR_LAYERS);
+        if (current != extraSource) {
+            Set<ResourceLocation> parsed = new HashSet<>();
+            for (String id : current) {
+                ResourceLocation rl = ResourceLocation.tryParse(id.trim());
+                if (rl != null) {
+                    parsed.add(rl);
+                }
+            }
+            extraLayers = Set.copyOf(parsed);
+            extraSource = current;
+        }
+        return extraLayers;
     }
 
     private HudScaleHandler() {}
