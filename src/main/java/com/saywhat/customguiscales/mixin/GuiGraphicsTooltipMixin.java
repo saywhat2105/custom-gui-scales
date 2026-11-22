@@ -11,6 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix3x2fStack;
 import org.joml.Vector2ic;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -42,17 +43,33 @@ import java.util.List;
  * <p>(NeoForge fires RenderTooltipEvent.Pre inside this method; if another mod moves the tooltip
  * via that event the anchor could differ slightly, but the default case matches exactly.)
  *
+ * <p>Nested tooltips: a bundle tooltip draws its selected-item label by calling this same method
+ * (ClientBundleTooltip#drawSelectedItemTooltip -> the 6-argument renderTooltip -> this overload)
+ * from inside the outer tooltip's draw (its renderImage loop), while the outer scale is still on
+ * the matrix stack and with coordinates in the outer tooltip's local space. Scaling it again would
+ * apply the factor twice and misplace it, so only the OUTERMOST call applies the transform; nested
+ * calls inherit it once. The depth counter is a per-instance field, and GameRenderer#render creates
+ * a new GuiGraphics every frame, so even an exception mid-draw cannot leave it stuck beyond that
+ * frame.
+ *
+ * <p>The descriptor constant and the depth field are {@link Unique} so Mixin never merges them into
+ * GuiGraphics under a plain name that another mod's mixin could also use.
+ *
  * <p>HEAD always pushes and RETURN always pops (including the early return when the Pre event is
  * cancelled), so the matrix stack stays balanced.
  */
 @Mixin(GuiGraphics.class)
 public abstract class GuiGraphicsTooltipMixin {
 
+    @Unique
     private static final String RENDER_TOOLTIP =
             "renderTooltip(Lnet/minecraft/client/gui/Font;Ljava/util/List;II"
                     + "Lnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;"
                     + "Lnet/minecraft/resources/ResourceLocation;"
                     + "Lnet/minecraft/world/item/ItemStack;)V";
+
+    @Unique
+    private int customguiscales$depth;
 
     @Inject(method = RENDER_TOOLTIP, at = @At("HEAD"))
     private void customguiscales$scaleTooltipStart(Font font, List<ClientTooltipComponent> components,
@@ -62,6 +79,11 @@ public abstract class GuiGraphicsTooltipMixin {
         GuiGraphics self = (GuiGraphics) (Object) this;
         Matrix3x2fStack pose = self.pose();
         pose.pushMatrix();
+
+        // Nested tooltip (e.g. a bundle's selected-item label): already inside the outer, scaled one.
+        if (this.customguiscales$depth++ > 0) {
+            return;
+        }
 
         float m = ScaleUtil.multiplier(Config.get(Config.TOOLTIP_SCALE));
         if (m == 1.0f || components.isEmpty()) {
@@ -93,6 +115,7 @@ public abstract class GuiGraphicsTooltipMixin {
 
     @Inject(method = RENDER_TOOLTIP, at = @At("RETURN"))
     private void customguiscales$scaleTooltipEnd(CallbackInfo ci) {
+        this.customguiscales$depth--;
         ((GuiGraphics) (Object) this).pose().popMatrix();
     }
 }
