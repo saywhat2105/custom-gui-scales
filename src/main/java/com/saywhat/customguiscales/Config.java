@@ -1,6 +1,9 @@
 package com.saywhat.customguiscales;
 
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
+
+import java.util.List;
 
 /**
  * Client config. Every value is an <b>absolute</b> GUI scale, exactly like the vanilla
@@ -15,6 +18,8 @@ public final class Config {
     public static final ForgeConfigSpec.DoubleValue HOTBAR_SCALE;
     /** Scale of item / text tooltips. */
     public static final ForgeConfigSpec.DoubleValue TOOLTIP_SCALE;
+    /** Other mods' HUD overlay ids to scale together with the hotbar cluster. */
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> EXTRA_HOTBAR_LAYERS;
 
     public static final ForgeConfigSpec SPEC;
 
@@ -44,6 +49,17 @@ public final class Config {
                 .defineInRange("tooltipScale", 2.0, MIN, MAX);
 
         BUILDER.pop();
+
+        BUILDER.push("compat");
+        EXTRA_HOTBAR_LAYERS = BUILDER
+                .comment("Extra HUD overlay ids from other mods to scale together with the hotbar, for mods that",
+                         "draw their own bars or overlays on the bottom HUD, e.g. [\"somemod:mana_bar\"].",
+                         "AppleSkin is handled automatically (it draws on the vanilla health/food overlays).")
+                .translation("customguiscales.config.extraHotbarLayers")
+                .defineListAllowEmpty("extraHotbarLayers", List.of(),
+                        o -> o instanceof String id && ResourceLocation.tryParse(id.trim()) != null);
+        BUILDER.pop();
+
         SPEC = BUILDER.build();
     }
 
@@ -56,6 +72,15 @@ public final class Config {
             return value.get();
         } catch (IllegalStateException notLoadedYet) {
             return 0.0;
+        }
+    }
+
+    /** Reads a list config value safely; an empty list if the config has not been loaded yet. */
+    public static List<? extends String> getList(ForgeConfigSpec.ConfigValue<List<? extends String>> value) {
+        try {
+            return value.get();
+        } catch (IllegalStateException notLoadedYet) {
+            return List.of();
         }
     }
 

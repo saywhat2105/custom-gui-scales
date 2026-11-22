@@ -5,5 +5,6 @@
   "customguiscales.value.off": "Off (global)",
 
   "customguiscales.config.hotbarScale": "Hotbar scale",
-  "customguiscales.config.tooltipScale": "Tooltip scale"
+  "customguiscales.config.tooltipScale": "Tooltip scale",
+  "customguiscales.config.extraHotbarLayers": "Extra hotbar layers"
 }
