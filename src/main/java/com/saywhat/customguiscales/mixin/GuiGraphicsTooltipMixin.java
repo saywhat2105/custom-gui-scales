@@ -58,6 +58,7 @@ import java.util.List;
 @Mixin(GuiGraphicsExtractor.class)
 public abstract class GuiGraphicsTooltipMixin {
 
+    @Unique
     private static final String TOOLTIP =
             "tooltip(Lnet/minecraft/client/gui/Font;Ljava/util/List;II"
                     + "Lnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;"
