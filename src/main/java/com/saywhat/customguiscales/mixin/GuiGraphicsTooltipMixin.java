@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositione
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Vector2ic;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -34,10 +35,23 @@ import java.util.List;
  * <p>(NeoForge fires RenderTooltipEvent.Pre inside this method; if another mod moves the tooltip
  * via that event the anchor could differ slightly, but the default case matches exactly.)
  *
- * <p>HEAD always pushes and RETURN always pops, so the matrix stack stays balanced.
+ * <p>Nested tooltips: a bundle tooltip draws its selected-item label from
+ * {@code ClientBundleTooltip#renderImage} by calling {@code GuiGraphics#renderTooltip}, which
+ * funnels into this same {@code renderTooltipInternal} - i.e. from inside the outer tooltip's draw,
+ * while the outer scale is still on the pose stack and with coordinates in the outer tooltip's local
+ * space. Scaling it again would apply the factor twice and misplace it, so only the OUTERMOST call
+ * applies the transform; nested calls inherit it once. The depth counter is a per-instance field,
+ * and GameRenderer creates a new GuiGraphics every frame, so even an exception mid-draw cannot leave
+ * it stuck beyond that frame.
+ *
+ * <p>HEAD always pushes and RETURN always pops (including the early return when the Pre event is
+ * cancelled), so the matrix stack stays balanced.
  */
 @Mixin(GuiGraphics.class)
 public abstract class GuiGraphicsTooltipMixin {
+
+    @Unique
+    private int customguiscales$depth;
 
     // 1.21.4: renderTooltipInternal(Font, List<ClientTooltipComponent>, int, int, ClientTooltipPositioner,
     // @Nullable ResourceLocation backgroundTexture). The parameter list here must match it exactly.
@@ -48,6 +62,11 @@ public abstract class GuiGraphicsTooltipMixin {
         GuiGraphics self = (GuiGraphics) (Object) this;
         PoseStack pose = self.pose();
         pose.pushPose();
+
+        // Nested tooltip (e.g. a bundle's selected-item label): already inside the outer, scaled one.
+        if (this.customguiscales$depth++ > 0) {
+            return;
+        }
 
         float m = ScaleUtil.multiplier(Config.get(Config.TOOLTIP_SCALE));
         if (m == 1.0f || components.isEmpty()) {
@@ -79,6 +98,7 @@ public abstract class GuiGraphicsTooltipMixin {
 
     @Inject(method = "renderTooltipInternal", at = @At("RETURN"))
     private void customguiscales$scaleTooltipEnd(CallbackInfo ci) {
+        this.customguiscales$depth--;
         ((GuiGraphics) (Object) this).pose().popPose();
     }
 }
